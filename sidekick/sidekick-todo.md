@@ -8,31 +8,24 @@ This todo list covers the implementation of **Phase 1** (Secure Local Bridge), *
 
 ### 1. Discovery Service & Local Bridge (Gateway Side)
 - [ ] **Establish Discovery Endpoint in Gateway**
-  - [ ] Modify `src/browser/extension-relay.ts` or create a new discovery service to listen on a fixed/known port (e.g., `18789`).
-  - [ ] Implement a lightweight GET `/sidekick/discovery` endpoint that returns Gateway version and status.
+  - [x] Modify `src/browser/extension-relay.ts` or create a new discovery service to listen on a fixed/known port (e.g., `18789`).
+  - [x] Implement a lightweight GET `/sidekick/discovery` endpoint that returns Gateway version and status.
   - [ ] Ensure the discovery service only binds to loopback (`127.0.0.1`) for security.
   - [ ] Add CORS headers to allow requests from `chrome-extension://*`.
 - [ ] **Enhance `extension-relay.ts` for Authentication Handshake**
-  - [ ] Define `AUTH_REQUEST` and `AUTH_RESPONSE` message types in the relay protocol.
-  - [ ] Implement a "Pending Approval" state for new extension connections.
-  - [ ] Add a `ClientKey` / `ClientID` registration mechanism to uniquely identify extension instances.
-  - [ ] Create a registry for "Approved Extensions" (persisted in OpenClaw config or a local DB).
-- [ ] **User Approval Flow (macOS Integration)**
-  - [ ] Implement a bridge to trigger a macOS notification or menu bar prompt when a new `AUTH_REQUEST` arrives.
-  - [ ] Create a simple "Approval UI" (can be a CLI prompt for now, moving to macOS app later) to allow/deny the extension.
-  - [ ] On approval, return an `AuthToken` to the extension and store it in the Gateway's allowed-clients list.
 
 ### 2. Extension Scaffold & Basic Bridge (Extension Side)
-- [ ] **Initialize Extension Project**
-  - [ ] Create `extensions/sidekick` directory.
-  - [ ] Create `manifest.json` (MV3) with necessary permissions: `sidePanel`, `debugger`, `scripting`, `storage`, `declarativeNetRequest`.
-- [ ] **Implement Discovery & Handshake Logic (`background.js`)**
-  - [ ] Add a timer-based or trigger-based "Discovery" loop that pings `localhost:18789/sidekick/discovery`.
-  - [ ] Upon finding the Gateway, initiate the WebSocket connection to `/extension`.
+- [x] **Initialize Extension Project**
+  - [x] Create `extensions/sidekick` directory.
+  - [x] Create `manifest.json` (MV3) with necessary permissions: `sidePanel`, `debugger`, `scripting`, `storage`, `declarativeNetRequest`.
+- [x] **Implement Discovery & Handshake Logic (`background.js`)**
+  - [x] Add a timer-based or trigger-based "Discovery" loop that pings `localhost:18789/sidekick/discovery`.
+  - [x] Upon finding the Gateway, initiate the WebSocket connection to `/extension`.
   - [ ] Handle the `AUTH_REQUEST` protocol: Generate `ClientKey`, send request, store `AuthToken`.
-- [ ] **Robust WebSocket Management**
-  - [ ] Implement exponential backoff for reconnection.
-  - [ ] Add heartbeat (ping/pong) logic.
+- [x] **Robust WebSocket Management**
+  - [x] Implement exponential backoff for reconnection.
+  - [x] Add heartbeat (ping/pong) logic.
+
 
 ### 3. Security Hardening & Verification
 - [ ] **Origin Verification**
@@ -45,24 +38,24 @@ This todo list covers the implementation of **Phase 1** (Secure Local Bridge), *
 ## Phase 2: The Side Panel (The UX Core)
 
 ### 1. Extension Side Panel UI & Basics
-- [ ] **Configure Side Panel in `manifest.json`**
-  - [ ] Add `sidePanel` to `permissions`.
-  - [ ] Define `side_panel` with `default_path: "sidepanel.html"`.
-  - [ ] Set `action` to open the side panel on click.
-- [ ] **Create Side Panel UI Scaffold**
-  - [ ] Build `sidepanel.html` with a basic chat interface layout.
-  - [ ] Implement `sidepanel.js` to handle UI logic and message passing.
-  - [ ] Add a "Connect/Status" indicator showing the link to the OpenClaw Gateway.
-  - [ ] Design a minimalist, "OpenClaw-themed" CSS (using the 🦞 palette).
+- [x] **Configure Side Panel in `manifest.json`**
+  - [x] Add `sidePanel` to `permissions`.
+  - [x] Define `side_panel` with `default_path: "sidepanel.html"`.
+  - [x] Set `action` to open the side panel on click.
+- [x] **Create Side Panel UI Scaffold**
+  - [x] Build `sidepanel.html` with a basic chat interface layout.
+  - [x] Implement `sidepanel.js` to handle UI logic and message passing.
+  - [x] Add a "Connect/Status" indicator showing the link to the OpenClaw Gateway.
+  - [x] Design a minimalist, "OpenClaw-themed" CSS (using the 🦞 palette).
 - [ ] **Tab Context Tracking (`background.js`)**
   - [ ] Listen for `chrome.tabs.onActivated` and `chrome.tabs.onUpdated`.
   - [ ] Implement a debounced mechanism to send "Active Tab" metadata to the Gateway.
   - [ ] Ensure only the current active tab's context is synced to avoid noise.
 
 ### 2. Gateway Integration (`/sidekick/sync`)
-- [ ] **Create Sidekick Route Registrar**
-  - [ ] Create `src/browser/routes/sidekick.ts` to house sidekick-specific endpoints.
-  - [ ] Register it in `src/browser/routes/index.ts`.
+- [x] **Create Sidekick Route Registrar**
+  - [x] Create `src/browser/routes/sidekick.ts` to house sidekick-specific endpoints.
+  - [x] Register it in `src/browser/routes/index.ts`.
 - [ ] **Implement `/sidekick/sync` Endpoint**
   - [ ] Define request schema for receiving `url`, `title`, and `DOM_Snapshot` (or accessibility tree).
   - [ ] Update the active session's "Agent Context" with the received data.
@@ -88,13 +81,13 @@ This todo list covers the implementation of **Phase 1** (Secure Local Bridge), *
 ## Phase 3: The "Magic" (Injection & Highlighting)
 
 ### 1. Highlighting & Visual Feedback (The "🦞 Glow")
-- [ ] **Define CSS for Highlighting**
-  - [ ] Create `highlight-target` (static glow) and `highlight-pulse` (active) classes in `content-script.css`.
-  - [ ] Use Shadow DOM or strict prefixing to ensure zero style leakage into the host page.
-- [ ] **Implement Highlight Logic in `content-script.js`**
-  - [ ] Create listeners for `HIGHLIGHT_ELEMENT` and `CLEAR_HIGHLIGHTS`.
-  - [ ] Implement a robust selector engine: ID, CSS, XPath, and Fuzzy Text matching.
-  - [ ] Add smooth "Scroll into View" for highlighted elements.
+- [x] **Define CSS for Highlighting**
+  - [x] Create `highlight-target` (static glow) and `highlight-pulse` (active) classes in `content-script.css`.
+  - [x] Use Shadow DOM or strict prefixing to ensure zero style leakage into the host page.
+- [x] **Implement Highlight Logic in `content-script.js`**
+  - [x] Create listeners for `HIGHLIGHT_ELEMENT` and `CLEAR_HIGHLIGHTS`.
+  - [x] Implement a robust selector engine: ID, CSS, XPath, and Fuzzy Text matching.
+  - [x] Add smooth "Scroll into View" for highlighted elements.
 - [ ] **Relay Command Routing**
   - [ ] Update `extension-relay.ts` to route highlight commands from the Gateway to specific tabs.
 

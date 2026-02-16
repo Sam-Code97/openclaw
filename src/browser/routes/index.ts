@@ -3,9 +3,11 @@ import type { BrowserRouteRegistrar } from "./types.js";
 import { registerBrowserAgentRoutes } from "./agent.js";
 import { registerBrowserBasicRoutes } from "./basic.js";
 import { registerBrowserTabRoutes } from "./tabs.js";
+import { registerSidekickRoutes } from "./sidekick.js";
 
 export function registerBrowserRoutes(app: BrowserRouteRegistrar, ctx: BrowserRouteContext) {
   registerBrowserBasicRoutes(app, ctx);
   registerBrowserTabRoutes(app, ctx);
   registerBrowserAgentRoutes(app, ctx);
+  registerSidekickRoutes(app, ctx);
 }

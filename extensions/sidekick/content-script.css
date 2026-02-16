@@ -1,0 +1,20 @@
+/* content-script.css - OpenClaw Sidekick 🦞 */
+
+.osc-highlight-glow {
+  outline: 4px solid #e63946 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 20px rgba(230, 57, 70, 0.6) !important;
+  transition: all 0.3s ease-in-out !important;
+  z-index: 999999 !important;
+  position: relative !important;
+}
+
+@keyframes osc-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0.7); }
+  70% { box-shadow: 0 0 0 15px rgba(230, 57, 70, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0); }
+}
+
+.osc-highlight-pulse {
+  animation: osc-pulse 2s infinite;
+}
