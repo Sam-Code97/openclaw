@@ -116,8 +116,8 @@ function sendGatewayMessage(method, params) {
   }
 
   const message = {
-    id: messageId++,
-    type: "request",
+    id: String(messageId++),
+    type: "req",
     method,
     params,
   };
