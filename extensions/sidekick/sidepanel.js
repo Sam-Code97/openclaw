@@ -36,22 +36,24 @@ function connectToGateway() {
         connectNonce = data.payload?.nonce;
         console.log("🦞 Sidekick: Got challenge nonce:", connectNonce);
 
-        // Send connect request
-        sendGatewayMessage("connect", {
+        // Send connect request with full auth
+        const connectPayload = {
           minProtocol: 1,
           maxProtocol: 1,
           client: {
             id: "openclaw-sidekick-extension",
             displayName: "OpenClaw Sidekick",
             version: "0.1.0",
+            platform: process?.platform || "chrome",
             mode: "webchat",
           },
-          role: "operator",
-          scopes: ["operator.admin"],
-          caps: ["chat", "browser"],
-          device: null,
+          role: "webchat",
+          scopes: ["webchat.user"],
+          caps: [],
           nonce: connectNonce,
-        });
+        };
+        console.log("🦞 Sidekick: Sending connect:", JSON.stringify(connectPayload, null, 2));
+        sendGatewayMessage("connect", connectPayload);
       } else if (data.type === "response" && data.id) {
         // Handle response to our connect request
         if (data.ok) {
@@ -84,10 +86,18 @@ function connectToGateway() {
     }
   };
 
-  gatewaySocket.onclose = () => {
-    console.log("🦞 Sidekick: Gateway connection closed");
+  gatewaySocket.onclose = (event) => {
+    console.log("🦞 Sidekick: Gateway connection closed", event.code, event.reason);
     isGatewayConnected = false;
     updateStatusUI("disconnected");
+
+    // Show error message if this is the first connection attempt
+    if (!document.querySelector(".connection-error")) {
+      appendMessage(`Connection closed (code: ${event.code}). Retrying in 5 seconds...`, "agent");
+      const msgs = chatContainer.querySelectorAll(".message-agent");
+      msgs[msgs.length - 1]?.classList.add("connection-error");
+    }
+
     setTimeout(connectToGateway, 5000);
   };
 
@@ -105,13 +115,18 @@ function sendGatewayMessage(method, params) {
   }
 
   const message = {
-    id: String(messageId++),
+    id: messageId++,
     type: "request",
     method,
     params,
   };
 
-  gatewaySocket.send(JSON.stringify(message));
+  const msgStr = JSON.stringify(message);
+  console.log(
+    "🦞 Sidekick: Sending:",
+    msgStr.substring(0, 200) + (msgStr.length > 200 ? "..." : ""),
+  );
+  gatewaySocket.send(msgStr);
 }
 
 // Also track extension relay status
