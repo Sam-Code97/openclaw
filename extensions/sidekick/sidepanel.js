@@ -1,114 +1,51 @@
 // sidepanel.js - OpenClaw Sidekick 🦞
 
-const GATEWAY_WS_URL = "ws://127.0.0.1:18789";
 const chatContainer = document.getElementById("chat");
 const userInput = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 const statusBadge = document.getElementById("status");
-
-let gatewaySocket = null;
-let messageId = 1;
-let isGatewayConnected = false;
 
 function updateStatusUI(status) {
   statusBadge.textContent = status === "connected" ? "Connected" : "Disconnected";
   statusBadge.className = `status-badge status-${status}`;
 }
 
-// Connect to OpenClaw Gateway
-function connectToGateway() {
-  console.log("🦞 Sidekick: Connecting to gateway...");
-
-  gatewaySocket = new WebSocket(GATEWAY_WS_URL);
-
-  gatewaySocket.onopen = () => {
-    console.log("🦞 Sidekick: Connected to gateway");
-    isGatewayConnected = true;
-    updateStatusUI("connected");
-
-    // Send connect message
-    sendGatewayMessage("connect", {
-      client: {
-        id: "openclaw-sidekick-extension",
-        displayName: "OpenClaw Sidekick",
-        version: "0.1.0",
-      },
-      minProtocol: 1,
-      maxProtocol: 1,
-    });
-  };
-
-  gatewaySocket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      console.log("🦞 Sidekick: Gateway message:", data);
-
-      if (data.type === "event" && data.event === "chat") {
-        // Handle chat response
-        const payload = data.payload || {};
-        if (payload.content) {
-          appendMessage(payload.content, "agent");
-        }
-      } else if (data.type === "response") {
-        // Handle direct response
-        if (data.payload && data.payload.message) {
-          appendMessage(data.payload.message, "agent");
-        }
-      }
-    } catch (err) {
-      console.error("🦞 Sidekick: Error parsing gateway message:", err);
-    }
-  };
-
-  gatewaySocket.onclose = () => {
-    console.log("🦞 Sidekick: Gateway connection closed");
-    isGatewayConnected = false;
-    updateStatusUI("disconnected");
-    // Reconnect after 5 seconds
-    setTimeout(connectToGateway, 5000);
-  };
-
-  gatewaySocket.onerror = (err) => {
-    console.error("🦞 Sidekick: Gateway error:", err);
-    isGatewayConnected = false;
-    updateStatusUI("disconnected");
-  };
-}
-
-function sendGatewayMessage(method, params) {
-  if (!gatewaySocket || gatewaySocket.readyState !== WebSocket.OPEN) {
-    console.warn("🦞 Sidekick: Gateway not connected");
-    return;
-  }
-
-  const message = {
-    id: messageId++,
-    type: "request",
-    method,
-    params,
-  };
-
-  gatewaySocket.send(JSON.stringify(message));
-}
+// Track if extension relay is connected (background script to extension relay)
+let isExtensionConnected = false;
 
 // Get initial status from background
 chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
   if (response && response.status) {
-    // Don't update UI - we track gateway connection separately
+    isExtensionConnected = response.status === "connected";
+    updateStatusUI(response.status);
   }
 });
 
-// Listen for status updates from background (extension relay status)
+// Listen for status updates and agent responses from background
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "STATUS_UPDATE") {
-    // Background extension relay status changed
-    console.log("🦞 Sidekick: Extension relay status:", message.status);
+    isExtensionConnected = message.status === "connected";
+    updateStatusUI(message.status);
+  }
+
+  if (message.type === "AGENT_RESPONSE") {
+    // Remove processing message if present
+    const processingMsg = chatContainer.querySelector(".processing");
+    if (processingMsg) {
+      processingMsg.remove();
+    }
+    appendMessage(message.content, "agent");
   }
 });
 
-function appendMessage(text, sender) {
+function appendMessage(text, sender, isProcessing = false) {
   const msgDiv = document.createElement("div");
   msgDiv.className = `message message-${sender}`;
+  if (isProcessing) {
+    msgDiv.classList.add("processing");
+    msgDiv.style.fontStyle = "italic";
+    msgDiv.style.color = "#666";
+  }
   msgDiv.textContent = text;
   chatContainer.appendChild(msgDiv);
   chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -121,43 +58,43 @@ sendBtn.addEventListener("click", () => {
   appendMessage(text, "user");
   userInput.value = "";
 
-  if (!isGatewayConnected) {
+  if (!isExtensionConnected) {
     appendMessage(
-      "Not connected to OpenClaw gateway. Please wait or reload the extension.",
+      "Extension relay not connected. Make sure the OpenClaw browser server is running.",
       "agent",
     );
     return;
   }
 
-  // Send message to gateway
-  console.log("🦞 Sidekick: Sending to gateway:", text);
-
-  // Get current tab info for context
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const currentTab = tabs[0];
-    const context = currentTab
-      ? {
-          url: currentTab.url,
-          title: currentTab.title,
-        }
-      : null;
-
-    sendGatewayMessage("chat", {
-      message: text,
-      context: {
-        type: "browser",
-        tab: context,
-      },
-    });
-  });
-
   // Show processing indicator
-  appendMessage("Processing your request...", "agent");
+  appendMessage("Processing your request...", "agent", true);
+
+  // Send message to background script
+  console.log("🦞 Sidekick: Sending to background:", text);
+
+  chrome.runtime.sendMessage(
+    {
+      type: "SEND_TO_AGENT",
+      message: text,
+    },
+    (response) => {
+      if (chrome.runtime.lastError) {
+        const processingMsg = chatContainer.querySelector(".processing");
+        if (processingMsg) processingMsg.remove();
+        appendMessage("Error: " + chrome.runtime.lastError.message, "agent");
+        return;
+      }
+
+      if (!response || !response.success) {
+        const processingMsg = chatContainer.querySelector(".processing");
+        if (processingMsg) processingMsg.remove();
+        appendMessage(response?.error || "Failed to process message", "agent");
+      }
+      // Success - wait for AGENT_RESPONSE message
+    },
+  );
 });
 
 userInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendBtn.click();
 });
-
-// Connect to gateway when panel opens
-connectToGateway();
