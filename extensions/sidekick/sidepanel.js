@@ -1,40 +1,137 @@
 // sidepanel.js - OpenClaw Sidekick 🦞
 
+const GATEWAY_WS_URL = "ws://127.0.0.1:18789";
 const chatContainer = document.getElementById("chat");
 const userInput = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 const statusBadge = document.getElementById("status");
+
+let gatewaySocket = null;
+let isGatewayConnected = false;
+let messageId = 1;
+let connectNonce = null;
 
 function updateStatusUI(status) {
   statusBadge.textContent = status === "connected" ? "Connected" : "Disconnected";
   statusBadge.className = `status-badge status-${status}`;
 }
 
-// Track if extension relay is connected (background script to extension relay)
+// Connect to OpenClaw Gateway
+function connectToGateway() {
+  console.log("🦞 Sidekick: Connecting to gateway...");
+
+  gatewaySocket = new WebSocket(GATEWAY_WS_URL);
+
+  gatewaySocket.onopen = () => {
+    console.log("🦞 Sidekick: WebSocket connected, waiting for challenge...");
+  };
+
+  gatewaySocket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log("🦞 Sidekick: Gateway message:", data);
+
+      if (data.type === "event" && data.event === "connect.challenge") {
+        // Handle auth challenge
+        connectNonce = data.payload?.nonce;
+        console.log("🦞 Sidekick: Got challenge nonce:", connectNonce);
+
+        // Send connect request
+        sendGatewayMessage("connect", {
+          minProtocol: 1,
+          maxProtocol: 1,
+          client: {
+            id: "openclaw-sidekick-extension",
+            displayName: "OpenClaw Sidekick",
+            version: "0.1.0",
+            mode: "webchat",
+          },
+          role: "operator",
+          scopes: ["operator.admin"],
+          caps: ["chat", "browser"],
+          device: null,
+          nonce: connectNonce,
+        });
+      } else if (data.type === "response" && data.id) {
+        // Handle response to our connect request
+        if (data.ok) {
+          console.log("🦞 Sidekick: Connected to gateway successfully");
+          isGatewayConnected = true;
+          updateStatusUI("connected");
+          appendMessage(
+            "Connected to OpenClaw agent! I can now see and control your browser.",
+            "agent",
+          );
+        } else {
+          console.error("🦞 Sidekick: Connection failed:", data.error);
+          appendMessage("Connection failed: " + (data.error?.message || "Unknown error"), "agent");
+        }
+      } else if (data.type === "event" && data.event === "chat") {
+        // Handle chat response from agent
+        const processingMsg = chatContainer.querySelector(".processing");
+        if (processingMsg) processingMsg.remove();
+
+        const content = data.payload?.content || data.payload?.message;
+        if (content) {
+          appendMessage(content, "agent");
+        }
+      } else if (data.type === "event" && data.event === "browser") {
+        // Handle browser tool response
+        console.log("🦞 Sidekick: Browser event:", data.payload);
+      }
+    } catch (err) {
+      console.error("🦞 Sidekick: Error parsing gateway message:", err);
+    }
+  };
+
+  gatewaySocket.onclose = () => {
+    console.log("🦞 Sidekick: Gateway connection closed");
+    isGatewayConnected = false;
+    updateStatusUI("disconnected");
+    setTimeout(connectToGateway, 5000);
+  };
+
+  gatewaySocket.onerror = (err) => {
+    console.error("🦞 Sidekick: Gateway error:", err);
+    isGatewayConnected = false;
+    updateStatusUI("disconnected");
+  };
+}
+
+function sendGatewayMessage(method, params) {
+  if (!gatewaySocket || gatewaySocket.readyState !== WebSocket.OPEN) {
+    console.warn("🦞 Sidekick: Gateway not connected");
+    return;
+  }
+
+  const message = {
+    id: String(messageId++),
+    type: "request",
+    method,
+    params,
+  };
+
+  gatewaySocket.send(JSON.stringify(message));
+}
+
+// Also track extension relay status
 let isExtensionConnected = false;
 
-// Get initial status from background
 chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
   if (response && response.status) {
     isExtensionConnected = response.status === "connected";
-    updateStatusUI(response.status);
+    if (!isGatewayConnected) {
+      updateStatusUI(response.status);
+    }
   }
 });
 
-// Listen for status updates and agent responses from background
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "STATUS_UPDATE") {
     isExtensionConnected = message.status === "connected";
-    updateStatusUI(message.status);
-  }
-
-  if (message.type === "AGENT_RESPONSE") {
-    // Remove processing message if present
-    const processingMsg = chatContainer.querySelector(".processing");
-    if (processingMsg) {
-      processingMsg.remove();
+    if (!isGatewayConnected) {
+      updateStatusUI(message.status);
     }
-    appendMessage(message.content, "agent");
   }
 });
 
@@ -58,43 +155,39 @@ sendBtn.addEventListener("click", () => {
   appendMessage(text, "user");
   userInput.value = "";
 
-  if (!isExtensionConnected) {
-    appendMessage(
-      "Extension relay not connected. Make sure the OpenClaw browser server is running.",
-      "agent",
-    );
+  if (!isGatewayConnected) {
+    appendMessage("Not connected to OpenClaw gateway. Please wait for connection...", "agent");
     return;
   }
 
   // Show processing indicator
   appendMessage("Processing your request...", "agent", true);
 
-  // Send message to background script
-  console.log("🦞 Sidekick: Sending to background:", text);
+  // Send chat message to gateway
+  console.log("🦞 Sidekick: Sending to gateway:", text);
 
-  chrome.runtime.sendMessage(
-    {
-      type: "SEND_TO_AGENT",
-      message: text,
-    },
-    (response) => {
-      if (chrome.runtime.lastError) {
-        const processingMsg = chatContainer.querySelector(".processing");
-        if (processingMsg) processingMsg.remove();
-        appendMessage("Error: " + chrome.runtime.lastError.message, "agent");
-        return;
-      }
+  // Get current tab info
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = tabs[0];
 
-      if (!response || !response.success) {
-        const processingMsg = chatContainer.querySelector(".processing");
-        if (processingMsg) processingMsg.remove();
-        appendMessage(response?.error || "Failed to process message", "agent");
-      }
-      // Success - wait for AGENT_RESPONSE message
-    },
-  );
+    sendGatewayMessage("chat", {
+      content: text,
+      context: {
+        type: "browser",
+        tab: currentTab
+          ? {
+              url: currentTab.url,
+              title: currentTab.title,
+            }
+          : null,
+      },
+    });
+  });
 });
 
 userInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendBtn.click();
 });
+
+// Connect when panel opens
+connectToGateway();
