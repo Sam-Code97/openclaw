@@ -36,8 +36,8 @@ function connectToGateway() {
         connectNonce = data.payload?.nonce;
         console.log("🦞 Sidekick: Got challenge nonce:", connectNonce);
 
-        // Send connect request with correct webchat auth
-        // Based on OpenClaw protocol: client.id must be "openclaw-control-ui" for webchat
+        // Send connect request - keep it simple for webchat
+        // Note: nonce is only used for device auth, not webchat connections
         const connectPayload = {
           minProtocol: 1,
           maxProtocol: 1,
@@ -48,10 +48,7 @@ function connectToGateway() {
             platform: "chrome",
             mode: "webchat",
           },
-          role: "operator",
-          scopes: ["operator.admin"],
           caps: ["chat"],
-          nonce: connectNonce,
         };
         console.log("🦞 Sidekick: Sending connect:", JSON.stringify(connectPayload, null, 2));
         sendGatewayMessage("connect", connectPayload);
