@@ -38,9 +38,10 @@ function connectToGateway() {
 
         // Send connect request - keep it simple for webchat
         // Note: nonce is only used for device auth, not webchat connections
+        // Use wider protocol range to avoid mismatch
         const connectPayload = {
           minProtocol: 1,
-          maxProtocol: 1,
+          maxProtocol: 3,
           client: {
             id: "openclaw-control-ui",
             displayName: "OpenClaw Sidekick",
