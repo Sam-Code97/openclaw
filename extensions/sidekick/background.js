@@ -1,7 +1,7 @@
 // background.js - OpenClaw Sidekick Extension 🦞
 
-const GATEWAY_URL = 'http://127.0.0.1:18789';
-const WS_URL = 'ws://127.0.0.1:18789/extension';
+const GATEWAY_URL = 'http://127.0.0.1:18792';
+const WS_URL = 'ws://127.0.0.1:18792/extension';
 let socket = null;
 let reconnectTimeout = 1000;
 let isConnected = false;
